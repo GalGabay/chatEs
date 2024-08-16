@@ -58,6 +58,11 @@ async def chat_client():
          # Create tasks for sending and receiving messages
         if not await authenticate(websocket):
             return  # Exit if authentication fails
+
+        room = input("What room you want to join to / to create? \n")
+        await websocket.send(room)
+        
+
         receive_task = asyncio.create_task(receive_messages(websocket))
         send_task = asyncio.create_task(send_messages(websocket))
         
