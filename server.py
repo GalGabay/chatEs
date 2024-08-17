@@ -1,7 +1,7 @@
 import asyncio
 import websockets
 import jwt
-from db import find_user, insert_room, delete_room, add_user,delete_user, room_exists, add_user_to_room, remove_user_from_room, get_users_in_room, remove_user_from_rooms, add_room_to_user
+from db import find_user_by_username, insert_room, delete_room, add_user,delete_user, room_exists_by_name, add_user_to_room, remove_user_from_room, get_users_in_room, remove_user_from_rooms, add_room_to_user,get_num_of_rooms
 
 # move it to environemnt later:
 SECRET_KEY = "my_secret_key"
@@ -26,21 +26,30 @@ SECRET_KEY = "my_secret_key"
 #    return users.find_one({"username": username})
 
 # Global dictionary to map users to their WebSocket connections
-user_connections = {}
-
+user_connections = {} # not sure if i need this
 
 async def connection(websocket):
     if not await authenticate(websocket):
         return  # Close the connection if authentication fails
-    add_user(websocket)
+    
     #users.add(websocket) # add the new client to the list of connected users
 
     # add the user to the room he asked for
-    room = await websocket.recv()
-    if not room_exists(room):
+    room_name = await websocket.recv()
+    room = room_exists_by_name(room_name) # checks if there is a room with this name
+    if not room:
+        room_count = get_num_of_rooms()
+        room = {
+        "name": room_name,
+        "id": room_count + 1,
+        "users": []
+        }
         insert_room(room)
-    add_user_to_room(websocket)
-    add_room_to_user(websocket,room)
+
+    user_name = user_connections[websocket]
+    user = find_user_by_username(user_name)
+    add_user_to_room(user)
+    add_room_to_user(user,room)
     #if room not in rooms["name"]:
     #    rooms[room] = set()
    # rooms[room].add(websocket)
@@ -56,8 +65,8 @@ async def connection(websocket):
     except websockets.ConnectionClosedOK:
         print("Connection closed")
     finally:
-        delete_user(websocket)
-        remove_user_from_rooms(websocket) # ?? i want to remove the user from all rooms
+        delete_user(user)
+        remove_user_from_rooms(user) # ?? i want to remove the user from all rooms
         if get_users_in_room(room) == []:
             delete_room(room)
         #rooms[room].remove(websocket)
@@ -70,17 +79,26 @@ async def authenticate(websocket):
         username = await websocket.recv()
         password = await websocket.recv()
         
+        #user = await find_user_by_username(username)
 
-        user = await find_user(username)
         # Check username and password
-        if user and user["password"] == password:
-            # Generate JWT token
-            token = jwt.encode({"username": username}, SECRET_KEY, algorithm="HS256")
-            await websocket.send(f"JWT {token}")
-            return True
-        else:
-            await websocket.send("Authentication failed")
-            return False
+        #if user and user["password"] == password:
+
+            # creating the user using the user schema
+        user_connections[websocket] = username
+        user_to_add = {
+            "username": username,
+            "password": password,
+            "rooms:": []
+        }
+        await add_user(user_to_add)
+        # Generate JWT token
+        token = jwt.encode({"username": username}, SECRET_KEY, algorithm="HS256")
+        await websocket.send(f"JWT {token}")
+        return True
+    #else:
+       # await websocket.send("Authentication failed")
+        #return False
     except Exception as e:
         print(f"Authentication error: {e}")
         return False
