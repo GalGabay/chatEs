@@ -12,17 +12,17 @@ rooms = db["rooms"]
 # INSERTING:
 def insert_room(room):
     rooms.insert_one(room)
-async def add_user(user):
+def add_user(user):
     users.insert_one(user)
 
 # DELETING:
-async def delete_room(room):
+def delete_room(room):
     result = rooms.delete_one(room)
     if result.deleted_count > 0:
         return True
     else:
         return False
-async def delete_user(user):
+def delete_user(user):
     result = users.delete_one(user)
     if result.deleted_count > 0:
         return True
@@ -31,12 +31,12 @@ async def delete_user(user):
  
 # SEARCHING:
 
-async def find_user_by_username(username):
+def find_user_by_username(username):
     return users.find_one({"username": username})
 #async def find_user_by_websocket(websocket):
   #  return users.find_one({"websocket": websocket})
 # Function to check if a room exists by its name
-async def room_exists_by_name(room_name):
+def room_exists_by_name(room_name):
     return rooms.find_one({"name": room_name})
 
 
@@ -49,6 +49,8 @@ def get_users_in_room(room):
     return []
 def get_num_of_rooms():
     return rooms.count_documents({})
+def get_num_of_users():
+    return users.count_documents({})
 
     
 
@@ -57,13 +59,13 @@ def get_num_of_rooms():
  # Function to add a user to a room
 def add_user_to_room(room, user):
     result = rooms.update_one(
-        {"name": room},  # Filter to find the room by name
+        {"name": room["name"]},  # Filter to find the room by name
         {"$addToSet": {"users": user}}  # Add the user to the "users" array if not already present
     )
     return result.modified_count > 0  # Returns True if the user was added
 def add_room_to_user(user, room):
     result = users.update_one(
-        {"username": user},
+        {"username": user["username"]},
         {"$addToSet": {"rooms": room}}
     )
     return result.modified_count > 0
@@ -85,4 +87,4 @@ def remove_user_from_rooms(user):
              {"name": room["name"]}, 
             {"$set": {"users": list(room["users"])}}
 )
-    users.update_one({"username": user["name"]}, {"$set": {"rooms": []}}) # why this line?
+    users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line?
