@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+import os
 import asyncio
 import websockets
 import jwt
@@ -17,8 +19,7 @@ from db import (
     get_num_of_users
 )
 
-# move it to environemnt later:
-SECRET_KEY = "my_secret_key"
+
 
 #users = set()
 #rooms = {}
@@ -40,6 +41,9 @@ SECRET_KEY = "my_secret_key"
 #    return users.find_one({"username": username})
 
 # Global dictionary to map users to their WebSocket connections
+
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 websocket_to_username = {}
 username_to_websocket = {}

@@ -1,7 +1,13 @@
 from pymongo import MongoClient
+from dotenv import load_dotenv
+import os
 
-# move it to environemnt later:
-MONGO_URI = "mongodb+srv://galgabay1999:bony5250@chatappcluster.jco5v.mongodb.net/"
+
+
+load_dotenv()
+MONGO_URI = os.getenv("MONGO_URI")
+
+
 client = MongoClient(MONGO_URI)
 db = client["chatSportsDB"]
 users = db["users"]
