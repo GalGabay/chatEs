@@ -27,6 +27,17 @@ async def send_messages(websocket):
 async def authenticate(websocket):
     with ThreadPoolExecutor(1, "thread_for_input") as pool:
         try:
+
+            while True:
+                # ask for an action
+                action = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Hi! do you want to login or register? ")
+                await websocket.send(action)
+                response = await websocket.recv()
+                if response == "Please write only login or register!":
+                    print(response)
+                else:
+                    print(response)
+                    break
             # Ask for username and send it to the server
             username = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter your username: ")
             await websocket.send(username)

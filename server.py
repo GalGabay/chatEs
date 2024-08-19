@@ -104,22 +104,50 @@ async def connection(websocket):
 
 async def authenticate(websocket):
     try:
+        while True:
+            action = await websocket.recv()
+            if action.lower() == "login":
+                await websocket.send("Please Log In:")
+                break
+            elif action.lower() == "register":
+                await websocket.send("Please Register:")
+                break
+            await websocket.send("Please write only login or register!")
+
+
         # Receive the authentication data (username and password)
         username = await websocket.recv()
         password = await websocket.recv()
 
+        if action == "login":
+            user = find_user_by_username(username)
+
          # Check if the user is already logged in
-        if username in username_to_websocket:
-            await websocket.send("User already logged in")
-            return False
+            if username in username_to_websocket:
+                await websocket.send("User already logged in")
+                return False
+            
+            # check if the password is incorrect
+            if user and user["password"] != password: # if user exists and password is incorrect
+                await websocket.send("Authentication failed")
+                return False
+
+            # check if user doesn't exist
+            if not user: 
+                await websocket.send("User doesn't exist! Please register first")
+                return False
+            
+            websocket_to_username[websocket] = username
+            username_to_websocket[username] = websocket
         
-        user = find_user_by_username(username)
-        
-        if user and user["password"] != password: # if user exists and password is incorrect
-            await websocket.send("Authentication failed")
-            return False
-        
-        elif not user: # if user doesn't exist
+        elif action == "register":
+            user = find_user_by_username(username)
+
+            # if username is already used
+            if user:
+                await websocket.send("Username already taken")
+                return False
+            
         # creating the user using the user schema
             users_count = get_num_of_users()
             user_to_add = {
