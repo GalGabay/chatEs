@@ -16,7 +16,8 @@ from db import (
     remove_user_from_rooms,
     add_room_to_user,
     get_num_of_rooms,
-    get_num_of_users
+    get_num_of_users,
+    remove_room_from_user
 )
 
 
@@ -47,6 +48,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 
 websocket_to_username = {}
 username_to_websocket = {}
+
 
 async def connection(websocket):
     if not await authenticate(websocket):
@@ -83,6 +85,14 @@ async def connection(websocket):
         async for message in websocket:
             print(f"Server received: {message}")
 
+            # if the user wants to leave a room
+            if message.startswith("leave"):
+                room_name_to_leave = message[len("leave"):].strip()
+                room_to_leave = room_exists_by_name(room_name_to_leave)
+                if room_to_leave:
+                    remove_user_from_room(room_to_leave, user)
+                    remove_room_from_user(user_name,room)
+
             # Broadcast the received message to all connected users
             await asyncio.gather(*(username_to_websocket[user["username"]].send(message) for user in get_users_in_room(room))) # why gather and not wait?
            # await websocket.send(f"Received your message: {message}")
@@ -91,8 +101,6 @@ async def connection(websocket):
     finally:
         delete_user(user)
         remove_user_from_rooms(user) # ?? i want to remove the user from all rooms
-        if get_users_in_room(room) == []:
-            delete_room(room)
         #delete the connections:
         if websocket in websocket_to_username:
             username = websocket_to_username.pop(websocket)

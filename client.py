@@ -18,7 +18,7 @@ async def send_messages(websocket):
         try:
             while True:
                 # Get message input from the user
-                message = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter message: ")
+                message = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter message:")
                 await websocket.send(message)
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed by the server.")
@@ -53,7 +53,7 @@ async def authenticate(websocket):
                 print(f"Received token: {auth_response}")
                 return True
             else:
-                print("Authentication failed.")
+                print(auth_response)
                 return False # Exit if authentication fails
             
             
@@ -70,7 +70,7 @@ async def chat_client():
         if not await authenticate(websocket):
             return  # Exit if authentication fails
 
-        room = input("What room you want to join to / to create? \n")
+        room = input("What room you want to join to / to create?  / if you wish to pm to someone please write pm and then the user id:\n")
         await websocket.send(room)
         
 

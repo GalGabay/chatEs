@@ -66,20 +66,20 @@ def get_num_of_users():
 def add_user_to_room(room, user):
     result = rooms.update_one(
         {"name": room["name"]},  # Filter to find the room by name
-        {"$addToSet": {"users": user}}  # Add the user to the "users" array if not already present
+        {"$addToSet": {"users": user["id"]}}  # Add the user to the "users" array if not already present
     )
     return result.modified_count > 0  # Returns True if the user was added
 def add_room_to_user(user, room):
     result = users.update_one(
         {"username": user["username"]},
-        {"$addToSet": {"rooms": room}}
+        {"$addToSet": {"rooms": room["id"]}}
     )
     return result.modified_count > 0
 # Function to remove a user from a room
 def remove_user_from_room(room, user):
     result = rooms.update_one(
-        {"name": room},  # Filter to find the room by name
-        {"$pull": {"users": user}}
+        {"name": room["name"]},  # Filter to find the room by name
+        {"$pull": {"users": user["id"]}}
            )
     return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
 
@@ -87,10 +87,17 @@ def remove_user_from_rooms(user):
     rooms_of_user = user.get("rooms", []) # get all the rooms the user belongs to right now
     for room in rooms_of_user:
         if room:
-            room["users"].remove(user)
+            room["users"].remove(user["id"])
             # update it inside the db:
             rooms.update_one( 
              {"name": room["name"]}, 
             {"$set": {"users": list(room["users"])}}
 )
     users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line?
+
+def remove_room_from_user(username,room):
+    result = users.update_one(
+    {"username": username},  # Filter to find the room by name
+    {"$pull": {"rooms": room["id"]}}
+        )
+    return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
