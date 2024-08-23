@@ -39,6 +39,8 @@ def delete_user(user):
 
 def find_user_by_username(username):
     return users.find_one({"username": username})
+def find_user_by_id(id):
+    return users.find_one({"id": id})
 #async def find_user_by_websocket(websocket):
   #  return users.find_one({"websocket": websocket})
 # Function to check if a room exists by its name

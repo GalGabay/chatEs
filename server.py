@@ -17,7 +17,8 @@ from db import (
     add_room_to_user,
     get_num_of_rooms,
     get_num_of_users,
-    remove_room_from_user
+    remove_room_from_user, 
+    find_user_by_id
 )
 
 
@@ -51,6 +52,7 @@ username_to_websocket = {}
 
 
 async def connection(websocket):
+
     if not await authenticate(websocket):
         return  # Close the connection if authentication fails
     
@@ -62,53 +64,19 @@ async def connection(websocket):
     except websockets.ConnectionClosedError as e:
         print(f"Connection closed unexpectedly: {e}")
         return
-    #room_name = await websocket.recv()
-    room = room_exists_by_name(room_name) # checks if there is a room with this name
-    if not room:
-        room_count = get_num_of_rooms()
-        room = {
-        "name": room_name,
-        "id": room_count + 1,
-        "users": []
-        }
-        insert_room(room)
-
-    user_name = websocket_to_username[websocket]
-    user = find_user_by_username(user_name)
-    add_user_to_room(room, user)
-    add_room_to_user(user,room)
-    #if room not in rooms["name"]:
-    #    rooms[room] = set()
-   # rooms[room].add(websocket)
-
+   
+    await join_room(room_name, websocket)    
     try:
         async for message in websocket:
             print(f"Server received: {message}")
-
-            # if the user wants to leave a room
-            if message.startswith("leave"):
-                room_name_to_leave = message[len("leave"):].strip()
-                room_to_leave = room_exists_by_name(room_name_to_leave)
-                if room_to_leave:
-                    remove_user_from_room(room_to_leave, user)
-                    remove_room_from_user(user_name,room)
-
-            # Broadcast the received message to all connected users
-            await asyncio.gather(*(username_to_websocket[user["username"]].send(message) for user in get_users_in_room(room))) # why gather and not wait?
-           # await websocket.send(f"Received your message: {message}")
+            room = room_exists_by_name(room_name)
+            await handle_message(message, websocket, room)
+            
     except websockets.ConnectionClosedOK:
         print("Connection closed")
     finally:
-        delete_user(user)
-        remove_user_from_rooms(user) # ?? i want to remove the user from all rooms
-        #delete the connections:
-        if websocket in websocket_to_username:
-            username = websocket_to_username.pop(websocket)
-            if username in username_to_websocket:
-                username_to_websocket.pop(username)
-        #rooms[room].remove(websocket)
-       # if not rooms[room]:
-        #    del rooms[room]
+        await cleanup_user(websocket)
+         
 
 async def authenticate(websocket):
     try:
@@ -128,55 +96,135 @@ async def authenticate(websocket):
         password = await websocket.recv()
 
         if action == "login":
-            user = find_user_by_username(username)
-
-         # Check if the user is already logged in
-            if username in username_to_websocket:
-                await websocket.send("User already logged in")
-                return False
-            
-            # check if the password is incorrect
-            if user and user["password"] != password: # if user exists and password is incorrect
-                await websocket.send("Authentication failed")
-                return False
-
-            # check if user doesn't exist
-            if not user: 
-                await websocket.send("User doesn't exist! Please register first")
-                return False
-            
-            websocket_to_username[websocket] = username
-            username_to_websocket[username] = websocket
+            return await handle_login(websocket, username, password)
         
         elif action == "register":
-            user = find_user_by_username(username)
+            return await handle_register(websocket, username, password)
 
-            # if username is already used
-            if user:
-                await websocket.send("Username already taken")
-                return False
-            
-        # creating the user using the user schema
-            users_count = get_num_of_users()
-            user_to_add = {
-                "id": users_count + 1,
-                "username": username,
-                "password": password,
-                "rooms": []
-            }
-            add_user(user_to_add)
-            websocket_to_username[websocket] = username
-            username_to_websocket[username] = websocket
-        # Generate JWT token
-        token = jwt.encode({"username": username}, SECRET_KEY, algorithm="HS256")
-        await websocket.send(f"JWT {token}")
-        return True
+        return False
     #else:
        # await websocket.send("Authentication failed")
         #return False
     except Exception as e:
         print(f"Authentication error: {e}")
         return False
+    
+async def handle_login(websocket, username,password):
+    user = find_user_by_username(username)
+
+    # Check if the user is already logged in
+    if username in username_to_websocket:
+        await websocket.send("User already logged in")
+        return False
+    
+    # check if the password is incorrect
+    if user and user["password"] != password: # if user exists and password is incorrect
+        await websocket.send("Authentication failed")
+        return False
+
+    # check if user doesn't exist
+    if not user: 
+        await websocket.send("User doesn't exist! Please register first")
+        return False
+    
+    websocket_to_username[websocket] = username
+    username_to_websocket[username] = websocket
+
+    # Generate JWT token
+    token = jwt.encode({"username": username}, SECRET_KEY, algorithm="HS256")
+    await websocket.send(f"JWT {token}")
+    return True
+
+async def handle_register(websocket, username, password):
+    user = find_user_by_username(username)
+
+    # if username is already used
+    if user:
+        await websocket.send("Username already taken")
+        return False
+    
+# creating the user using the user schema
+    users_count = get_num_of_users()
+    user_to_add = {
+        "id": users_count + 1,
+        "username": username,
+        "password": password,
+        "rooms": []
+    }
+    add_user(user_to_add)
+    websocket_to_username[websocket] = username
+    username_to_websocket[username] = websocket
+
+    # Generate JWT token
+    token = jwt.encode({"username": username}, SECRET_KEY, algorithm="HS256")
+    await websocket.send(f"JWT {token}")
+    return True
+    
+async def join_room(room_name, websocket):
+     #room_name = await websocket.recv()
+    room = room_exists_by_name(room_name) # checks if there is a room with this name
+    if not room:
+        room_count = get_num_of_rooms()
+        room = {
+        "name": room_name,
+        "id": room_count + 1,
+        "users": []
+        }
+        insert_room(room)
+
+    user_name = websocket_to_username[websocket]
+    user = find_user_by_username(user_name)
+    add_user_to_room(room, user)
+    add_room_to_user(user,room)
+    #if room not in rooms["name"]:
+    #    rooms[room] = set()
+   # rooms[room].add(websocket)
+
+async def handle_message(message, websocket, room):
+    # if the user wants to leave a room
+    if message.startswith("leave"):
+        await leave_room(message, websocket)
+    elif message.startswith("pm"):
+        await handle_private_message(message, websocket)
+    else:
+        # Broadcast the received message to all connected users
+        await broadcast_message(message, room)
+        #await asyncio.gather(*(username_to_websocket[find_user_by_id(user_id)["username"]].send(message) for user_id in get_users_in_room(room))) # why gather and not wait?
+    # await websocket.send(f"Received your message: {message}")
+
+async def broadcast_message(message, room):
+    users_in_room = get_users_in_room(room)
+    for user_id in users_in_room:
+        socket_to_send = username_to_websocket.get(find_user_by_id(user_id)["username"])
+        if socket_to_send:
+            await socket_to_send.send(message)
+
+async def leave_room(message, websocket):
+    room_name_to_leave = message[len("leave"):].strip()
+    room_to_leave = room_exists_by_name(room_name_to_leave)
+    if room_to_leave:
+        user_name = websocket_to_username[websocket]
+        user = find_user_by_username(user_name)
+        remove_user_from_room(room_to_leave, user)
+        remove_room_from_user(user_name,room_to_leave)
+
+# empty for now
+async def handle_private_message(message, websocket):
+    return 0
+
+async def cleanup_user(websocket):
+    username = websocket_to_username[websocket]
+    user = find_user_by_username(username)
+    delete_user(user)
+    remove_user_from_rooms(user) # ?? i want to remove the user from all rooms
+    #delete the connections:
+    if websocket in websocket_to_username:
+        username = websocket_to_username.pop(websocket)
+        if username in username_to_websocket:
+            username_to_websocket.pop(username)
+    #rooms[room].remove(websocket)
+    # if not rooms[room]:
+    #    del rooms[room]   
 
 async def main():
     start_server = await websockets.serve(connection, "localhost", 12345)

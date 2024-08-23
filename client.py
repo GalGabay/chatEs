@@ -11,7 +11,7 @@ async def receive_messages(websocket):
             message = await websocket.recv()
             print(f"Received: {message}\n")
     except websockets.exceptions.ConnectionClosed:
-        print("Connection closed by the server.")
+        print("Connection closed by the server")
 
 async def send_messages(websocket):
     with ThreadPoolExecutor(1, "thread_for_input") as pool:
