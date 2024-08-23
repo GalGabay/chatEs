@@ -59,18 +59,17 @@ async def connection(websocket):
     #users.add(websocket) # add the new client to the list of connected users
 
     # add the user to the room he asked for
-    try:
-        room_name = await websocket.recv()
-    except websockets.ConnectionClosedError as e:
-        print(f"Connection closed unexpectedly: {e}")
-        return
+   # try:
+    #    room_name = await websocket.recv()
+    #except websockets.ConnectionClosedError as e:
+    #    print(f"Connection closed unexpectedly: {e}")
+    #    return
    
-    await join_room(room_name, websocket)    
+   # await join_room(room_name, websocket)    
     try:
         async for message in websocket:
             print(f"Server received: {message}")
-            room = room_exists_by_name(room_name)
-            await handle_message(message, websocket, room)
+            await handle_message(message, websocket)
             
     except websockets.ConnectionClosedOK:
         print("Connection closed")
@@ -180,24 +179,35 @@ async def join_room(room_name, websocket):
     #    rooms[room] = set()
    # rooms[room].add(websocket)
 
-async def handle_message(message, websocket, room):
-    # if the user wants to leave a room
-    if message.startswith("leave"):
+async def handle_message(message, websocket):
+
+    if message.startswith("leave"): # leave a room
         await leave_room(message, websocket)
-    elif message.startswith("pm"):
+    elif message.startswith("join"): # join a room
+        words = message.split()
+        room_name = ' '.join(words[1:])
+        await join_room(room_name, websocket)
+    elif message.startswith("pm"): # pm someone
         await handle_private_message(message, websocket)
-    else:
-        # Broadcast the received message to all connected users
-        await broadcast_message(message, room)
+    else: # send a message to room
+        room_name = message.split()[0]
+        room = room_exists_by_name(room_name)
+        if room:
+            # Broadcast the received message to all connected users
+            words = message.split()
+            message_to_send = ' '.join(words[1:])
+            await broadcast_message(message_to_send, room)
+        
         #await asyncio.gather(*(username_to_websocket[find_user_by_id(user_id)["username"]].send(message) for user_id in get_users_in_room(room))) # why gather and not wait?
     # await websocket.send(f"Received your message: {message}")
 
 async def broadcast_message(message, room):
     users_in_room = get_users_in_room(room)
     for user_id in users_in_room:
-        socket_to_send = username_to_websocket.get(find_user_by_id(user_id)["username"])
+        username = find_user_by_id(user_id)["username"]
+        socket_to_send = username_to_websocket.get(username)
         if socket_to_send:
-            await socket_to_send.send(message)
+            await socket_to_send.send(f"{username} sent in {room["name"]}: {message}")
 
 async def leave_room(message, websocket):
     room_name_to_leave = message[len("leave"):].strip()
@@ -210,13 +220,21 @@ async def leave_room(message, websocket):
 
 # empty for now
 async def handle_private_message(message, websocket):
-    return 0
+    parts = message.split(' ', 2)
+    username_to_send = parts[1]
+    message_to_send = parts[2]
+    if username_to_send in username_to_websocket:
+        websocket_to_send = username_to_websocket[username_to_send]
+        sender_username = websocket_to_username[websocket]
+        await websocket_to_send.send(f"{sender_username} sent in PM: {message_to_send}")
+    else:
+        await websocket.send(f"User {username_to_send} is not online.")
 
 async def cleanup_user(websocket):
     username = websocket_to_username[websocket]
     user = find_user_by_username(username)
-    delete_user(user)
     remove_user_from_rooms(user) # ?? i want to remove the user from all rooms
+    delete_user(user)
     #delete the connections:
     if websocket in websocket_to_username:
         username = websocket_to_username.pop(websocket)
