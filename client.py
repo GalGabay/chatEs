@@ -1,5 +1,6 @@
 import asyncio
 import websockets
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 
 def get_input(prompt):
@@ -9,28 +10,64 @@ async def receive_messages(websocket):
     try:
         while True:
             message = await websocket.recv()
-            print(f"Received: {message}\n")
+            parts_of_message = message.split(' ', 1)
+            if parts_of_message[1] == "has left the room":
+                formatted_message = format_message(message, 'red', False, False)
+            elif parts_of_message[1] == "has joined the room":
+                formatted_message = format_message(message, 'green', False, False)
+            else:
+                formatted_message = format_message(message)
+            print(f"{formatted_message}")
     except websockets.exceptions.ConnectionClosed:
         print("Connection closed by the server")
 
 async def send_messages(websocket):
-    with ThreadPoolExecutor(1, "thread_for_input") as pool:
+  #  with ThreadPoolExecutor(1, "thread_for_input") as pool:
         try:
             while True:
                 # Get message input from the user
-                message = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter message:")
+                message = await asyncio.to_thread(input, "")
+                #message = await asyncio.get_event_loop().run_in_executor(pool, get_input, "")
                 await websocket.send(message)
+                if message == "logout":
+                    break
+
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed by the server.")
 
+def format_message(message, color='green', bold=False, center=True):
+    
+    # Get terminal width
+    terminal_width = shutil.get_terminal_size().columns
+
+    colors = {
+        'green': '\033[32m',
+        'red': '\033[31m',
+        'reset': '\033[0m'
+    }
+
+    bold_code = '\033[1m' if bold else ''
+    color_code = colors.get(color, colors['reset'])  # Default to reset if color not found
+    
+    # Format the message with the chosen color and style
+    styled_message = f"{bold_code}{color_code}{message}{colors['reset']}"
+
+    if center:
+        centered_message = styled_message.center(terminal_width)
+        return centered_message
+    else:
+        return styled_message
+
+
 
 async def authenticate(websocket):
-    with ThreadPoolExecutor(1, "thread_for_input") as pool:
+   # with ThreadPoolExecutor(1, "thread_for_input") as pool:
         try:
 
             while True:
                 # ask for an action
-                action = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Hi! do you want to login or register? ")
+                #action = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Hi! do you want to login or register? ")
+                action = await asyncio.to_thread(input, "Hi! Do you want to login or register? ")
                 await websocket.send(action)
                 response = await websocket.recv()
                 if response == "Please write only login or register!":
@@ -39,11 +76,13 @@ async def authenticate(websocket):
                     print(response)
                     break
             # Ask for username and send it to the server
-            username = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter your username: ")
+            #username = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter your username: ")
+            username = await asyncio.to_thread(input, "Enter your username: ")
             await websocket.send(username)
 
             # Ask for password and send it to the server
-            password = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter your password: ")
+            #password = await asyncio.get_event_loop().run_in_executor(pool, get_input, "Enter your password: ")
+            password = await asyncio.to_thread(input, "Enter your password: ")
             await websocket.send(password)
 
             # Receive authentication response from the server

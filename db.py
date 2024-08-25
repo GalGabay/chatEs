@@ -46,6 +46,8 @@ def find_user_by_id(id):
 # Function to check if a room exists by its name
 def room_exists_by_name(room_name):
     return rooms.find_one({"name": room_name})
+def room_exists_by_id(room_id):
+    return rooms.find_one({"id": room_id})
 
 
 #GETTING:
@@ -87,7 +89,8 @@ def remove_user_from_room(room, user):
 
 def remove_user_from_rooms(user):
     rooms_of_user = user.get("rooms", []) # get all the rooms the user belongs to right now
-    for room in rooms_of_user:
+    for room_id in rooms_of_user:
+        room = room_exists_by_id(room_id)
         if room:
             room["users"].remove(user["id"])
             # update it inside the db:
