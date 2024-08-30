@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 import asyncio
 import websockets
 import jwt
@@ -18,7 +19,9 @@ from db import (
     get_num_of_rooms,
     get_num_of_users,
     remove_room_from_user, 
-    find_user_by_id
+    find_user_by_id,
+    add_message,
+    get_message_history
 )
 
 
@@ -175,9 +178,26 @@ async def join_room(room_name, websocket):
     user = find_user_by_username(user_name)
     add_user_to_room(room, user)
     add_room_to_user(user,room)
+
+    messages = get_message_history(room_name)
+
+    for message in reversed(list(messages)):
+        await websocket.send(f"[History] {message['username']}: {message['message']}")
+
+
     #if room not in rooms["name"]:
     #    rooms[room] = set()
    # rooms[room].add(websocket)
+
+async def save_message(message, room_name, username):
+    new_message = {
+        "room_name": room_name,
+        "username": username,
+        "message": message,
+        "time": datetime.now()
+    }
+    add_message(new_message)
+
 
 async def handle_message(message, websocket):
 
@@ -200,6 +220,7 @@ async def handle_message(message, websocket):
             # Broadcast the received message to all connected users
             words = message.split()
             message_to_send = ' '.join(words[1:])
+            await save_message(' '.join(words[1:]), room_name, websocket_to_username[websocket]) # save the message in the db
             await broadcast_message(message_to_send, room, websocket)
         
         #await asyncio.gather(*(username_to_websocket[find_user_by_id(user_id)["username"]].send(message) for user_id in get_users_in_room(room))) # why gather and not wait?
@@ -233,6 +254,7 @@ async def handle_private_message(message, websocket):
     parts = message.split(' ', 2)
     username_to_send = parts[1]
     message_to_send = parts[2]
+    await save_message(message_to_send,username_to_send, websocket_to_username[websocket]) # save the message in the db
     if username_to_send in username_to_websocket:
         websocket_to_send = username_to_websocket[username_to_send]
         sender_username = websocket_to_username[websocket]

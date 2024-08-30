@@ -2,6 +2,15 @@ import asyncio
 import websockets
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+import winsound
+import threading
+
+
+nofification_file = "notifications_alert.wav"
+
+def play_notification_sound():
+   # winsound.PlaySound(nofification_file, winsound.SND_FILENAME)
+    threading.Thread(target=winsound.PlaySound, args=(nofification_file, winsound.SND_FILENAME)).start()
 
 def get_input(prompt):
     return input(prompt)
@@ -17,6 +26,8 @@ async def receive_messages(websocket):
                 formatted_message = format_message(message, 'green', False, False)
             else:
                 formatted_message = format_message(message)
+                if not message.startswith("[History]"):
+                    play_notification_sound()
             print(f"{formatted_message}")
     except websockets.exceptions.ConnectionClosed:
         print("Connection closed by the server")

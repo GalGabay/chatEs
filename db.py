@@ -12,6 +12,7 @@ client = MongoClient(MONGO_URI)
 db = client["chatSportsDB"]
 users = db["users"]
 rooms = db["rooms"]
+messages = db["messages"]
 
 
 
@@ -20,6 +21,9 @@ def insert_room(room):
     rooms.insert_one(room)
 def add_user(user):
     users.insert_one(user)
+def add_message(message):
+    messages.insert_one(message)
+
 
 # DELETING:
 def delete_room(room):
@@ -34,7 +38,35 @@ def delete_user(user):
         return True
     else:
         return False
- 
+# Function to remove a user from a room
+def remove_user_from_room(room, user):
+    result = rooms.update_one(
+        {"name": room["name"]},  # Filter to find the room by name
+        {"$pull": {"users": user["id"]}}
+           )
+    return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
+
+def remove_user_from_rooms(user):
+    rooms_of_user = user.get("rooms", []) # get all the rooms the user belongs to right now
+    for room_id in rooms_of_user:
+        room = room_exists_by_id(room_id)
+        if room:
+            room["users"].remove(user["id"])
+            # update it inside the db:
+            rooms.update_one( 
+             {"name": room["name"]}, 
+            {"$set": {"users": list(room["users"])}}
+)
+    users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line?
+
+def remove_room_from_user(username,room):
+    result = users.update_one(
+    {"username": username},  # Filter to find the room by name
+    {"$pull": {"rooms": room["id"]}}
+        )
+    return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array 
+
+
 # SEARCHING:
 
 def find_user_by_username(username):
@@ -79,30 +111,5 @@ def add_room_to_user(user, room):
         {"$addToSet": {"rooms": room["id"]}}
     )
     return result.modified_count > 0
-# Function to remove a user from a room
-def remove_user_from_room(room, user):
-    result = rooms.update_one(
-        {"name": room["name"]},  # Filter to find the room by name
-        {"$pull": {"users": user["id"]}}
-           )
-    return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
-
-def remove_user_from_rooms(user):
-    rooms_of_user = user.get("rooms", []) # get all the rooms the user belongs to right now
-    for room_id in rooms_of_user:
-        room = room_exists_by_id(room_id)
-        if room:
-            room["users"].remove(user["id"])
-            # update it inside the db:
-            rooms.update_one( 
-             {"name": room["name"]}, 
-            {"$set": {"users": list(room["users"])}}
-)
-    users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line?
-
-def remove_room_from_user(username,room):
-    result = users.update_one(
-    {"username": username},  # Filter to find the room by name
-    {"$pull": {"rooms": room["id"]}}
-        )
-    return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
+def get_message_history(room_name, limit=10):
+    return messages.find({"room_name": room_name}).sort("time", -1).limit(limit)
