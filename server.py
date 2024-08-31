@@ -21,7 +21,8 @@ from db import (
     remove_room_from_user, 
     find_user_by_id,
     add_message,
-    get_message_history
+    get_message_history,
+    is_user_admin
 )
 
 
@@ -207,7 +208,7 @@ async def save_message(message, room_name, username):
 async def handle_message(message, websocket):
 
     if message.startswith("leave"): # leave a room
-        await leave_room(message, websocket)
+        await leave_room(message, websocket, "leave")
     elif message.startswith("join"): # join a room
         words = message.split()
         room_name = ' '.join(words[1:])
@@ -218,6 +219,9 @@ async def handle_message(message, websocket):
         await handle_private_message(message, websocket)
     elif message.startswith("logout"): # user wants to logout
         await handle_logout(websocket)
+    elif message.startswith("remove"): # admin wants to remove user
+        await admin_remove_user(message, websocket) # if true: broadcast to everyone
+
     else: # send a message to room
         room_name = message.split()[0]
         room = room_exists_by_name(room_name)
@@ -231,6 +235,22 @@ async def handle_message(message, websocket):
         #await asyncio.gather(*(username_to_websocket[find_user_by_id(user_id)["username"]].send(message) for user_id in get_users_in_room(room))) # why gather and not wait?
     # await websocket.send(f"Received your message: {message}")
 
+async def admin_remove_user(message, websocket):
+    parts = message.split(' ', 2)
+    username_to_remove = parts[1]
+    webscoket_to_remove = username_to_websocket[username_to_remove]
+    room_name = parts[2]
+    room = room_exists_by_name(room_name)
+    admin_name = websocket_to_username[websocket]
+    admin = find_user_by_username(admin_name)
+    if admin["id"] in get_users_in_room(room) and is_user_admin(admin["id"],room):
+        await broadcast_message(message, room, websocket)
+        await leave_room(message, webscoket_to_remove, "remove")
+        await handle_logout(webscoket_to_remove)
+    #else:
+        
+    # currently didn't to the "else" thing
+
 async def broadcast_message(message, room, websocket):
     username = websocket_to_username[websocket]
     users_in_room = get_users_in_room(room)
@@ -238,22 +258,31 @@ async def broadcast_message(message, room, websocket):
         username_to_send = find_user_by_id(user_id)["username"]
         socket_to_send = username_to_websocket.get(username_to_send)
         if socket_to_send:
-            if message.startswith("leave"):
+            if message.startswith("remove"):
+                parts = message.split(' ', 2)
+                username_to_remove = parts[1]
+                await socket_to_send.send(f"{username_to_remove} was removed from the room by {username}")
+            elif message.startswith("leave"):
                 await socket_to_send.send(f"{username} has left the room")
             elif message == "join":
                 await socket_to_send.send(f"{username} has joined the room")
             else:
                 await socket_to_send.send(f"{username} sent in {room["name"]}: {message}")
 
-async def leave_room(message, websocket):
-    room_name_to_leave = message[len("leave"):].strip()
+async def leave_room(message, websocket, why):
+    if why == "leave":
+        room_name_to_leave = message[len("leave"):].strip()
+    else: # "removed"
+        parts = message.split(' ', 2)
+        room_name_to_leave = parts[2]
     room_to_leave = room_exists_by_name(room_name_to_leave)
     if room_to_leave:
         user_name = websocket_to_username[websocket]
         user = find_user_by_username(user_name)
         remove_user_from_room(room_to_leave, user)
         remove_room_from_user(user_name,room_to_leave)
-    await broadcast_message(message, room_to_leave, websocket)
+    if why == "leave":
+        await broadcast_message(message, room_to_leave, websocket)
 
 async def handle_private_message(message, websocket):
     parts = message.split(' ', 2)

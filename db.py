@@ -116,4 +116,14 @@ def add_room_to_user(user, room):
     )
     return result.modified_count > 0
 def get_message_history(room_name, limit=10):
+
     return messages.find({"room_name": room_name}).sort("time", -1).limit(limit)
+def is_user_admin(user_id, room):
+    users_in_room = room.get("users", [])  # Safely get the users list, defaulting to an empty list if not present
+    
+    if not users_in_room:
+        return False  # If no users are in the room, return False
+    
+    for user in users_in_room:
+        if user.get("id") == user_id:
+            return user.get("role") == "admin"  # Check if the user's role is 'admin'

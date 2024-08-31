@@ -20,7 +20,7 @@ async def receive_messages(websocket):
         while True:
             message = await websocket.recv()
             parts_of_message = message.split(' ', 1)
-            if parts_of_message[1] == "has left the room":
+            if parts_of_message[1] == "has left the room" or "was removed from the room by" in message:
                 formatted_message = format_message(message, 'red', False, False)
             elif parts_of_message[1] == "has joined the room":
                 formatted_message = format_message(message, 'green', False, False)
