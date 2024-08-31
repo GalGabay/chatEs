@@ -42,7 +42,7 @@ def delete_user(user):
 def remove_user_from_room(room, user):
     result = rooms.update_one(
         {"name": room["name"]},  # Filter to find the room by name
-        {"$pull": {"users": user["id"]}}
+        {"$pull": {"users": {"id": user["id"]}}}
            )
     return result.modified_count > 0  # Returns True if the user was removed  # Remove the user from the "users" array
 
@@ -51,13 +51,17 @@ def remove_user_from_rooms(user):
     for room_id in rooms_of_user:
         room = room_exists_by_id(room_id)
         if room:
-            room["users"].remove(user["id"])
+            #room["users"].remove(user["id"])
             # update it inside the db:
-            rooms.update_one( 
-             {"name": room["name"]}, 
-            {"$set": {"users": list(room["users"])}}
-)
-    users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line?
+            #rooms.update_one( 
+            # {"name": room["name"]}, 
+           # {"$set": {"users": list(room["users"])}})
+           rooms.update_one(
+                {"id": room["id"]},
+                {"$pull": {"users": {"id": user["id"]}}}
+            )
+
+    users.update_one({"username": user["username"]}, {"$set": {"rooms": []}}) # why this line? - clear the user's room
 
 def remove_room_from_user(username,room):
     result = users.update_one(
@@ -84,10 +88,10 @@ def room_exists_by_id(room_id):
 
 #GETTING:
 
-# getting all users from a specific room
+# getting all users id from a specific room
 def get_users_in_room(room):
     if room:
-        return room.get("users", [])
+        return [user["id"] for user in room.get("users", [])]
     return []
 def get_num_of_rooms():
     return rooms.count_documents({})
@@ -102,7 +106,7 @@ def get_num_of_users():
 def add_user_to_room(room, user):
     result = rooms.update_one(
         {"name": room["name"]},  # Filter to find the room by name
-        {"$addToSet": {"users": user["id"]}}  # Add the user to the "users" array if not already present
+        {"$addToSet": {"users": user}}  # Add the user to the "users" array if not already present
     )
     return result.modified_count > 0  # Returns True if the user was added
 def add_room_to_user(user, room):

@@ -77,8 +77,7 @@ async def connection(websocket):
     except websockets.ConnectionClosedOK:
         print("Connection closed")
     finally:
-        await handle_logout(websocket)
-         
+        await handle_logout(websocket)       
 
 async def authenticate(websocket):
     try:
@@ -164,6 +163,7 @@ async def handle_register(websocket, username, password):
     
 async def join_room(room_name, websocket):
      #room_name = await websocket.recv()
+    role = "member"
     room = room_exists_by_name(room_name) # checks if there is a room with this name
     if not room:
         room_count = get_num_of_rooms()
@@ -173,10 +173,16 @@ async def join_room(room_name, websocket):
         "users": []
         }
         insert_room(room)
+        role = "admin"
 
     user_name = websocket_to_username[websocket]
     user = find_user_by_username(user_name)
-    add_user_to_room(room, user)
+    user_to_room = {
+        "id": user["id"],
+        "username": user["username"],
+        "role": role
+    }
+    add_user_to_room(room, user_to_room)
     add_room_to_user(user,room)
 
     messages = get_message_history(room_name)
@@ -197,7 +203,6 @@ async def save_message(message, room_name, username):
         "time": datetime.now()
     }
     add_message(new_message)
-
 
 async def handle_message(message, websocket):
 
@@ -262,6 +267,7 @@ async def handle_private_message(message, websocket):
     else:
         await websocket.send(f"User {username_to_send} is not online.")
 
+# currently it is not in use
 async def cleanup_user(websocket):
     username = websocket_to_username[websocket]
     user = find_user_by_username(username)
