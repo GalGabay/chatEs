@@ -4,6 +4,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor
 import winsound
 import threading
+from datetime import datetime
 
 
 nofification_file = "notifications_alert.wav"
@@ -15,6 +16,9 @@ def play_notification_sound():
 def get_input(prompt):
     return input(prompt)
 
+def get_time():
+    return datetime.now().strftime("%H:%M")
+
 async def receive_messages(websocket):
     try:
         while True:
@@ -22,12 +26,13 @@ async def receive_messages(websocket):
             parts_of_message = message.split(' ', 1)
             if parts_of_message[1] == "has left the room" or "was removed from the room by" in message:
                 formatted_message = format_message(message, 'red', False, False)
-            elif parts_of_message[1] == "has joined the room":
+            elif parts_of_message[1] == "has joined the room"  or "is an admin now!" in message:
                 formatted_message = format_message(message, 'green', False, False)
             else:
                 formatted_message = format_message(message)
                 if not message.startswith("[History]"):
                     play_notification_sound()
+            #message_time = get_time()
             print(f"{formatted_message}")
     except websockets.exceptions.ConnectionClosed:
         print("Connection closed by the server")

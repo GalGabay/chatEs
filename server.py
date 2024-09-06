@@ -22,7 +22,8 @@ from db import (
     find_user_by_id,
     add_message,
     get_message_history,
-    is_user_admin
+    is_user_admin,
+    change_user_role
 )
 
 
@@ -221,6 +222,8 @@ async def handle_message(message, websocket):
         await handle_logout(websocket)
     elif message.startswith("remove"): # admin wants to remove user
         await admin_remove_user(message, websocket) # if true: broadcast to everyone
+    elif message.startswith("add"): # admin wants to add user
+        await admin_add_admin(message, websocket) # if true: broadcast to everyone
 
     else: # send a message to room
         room_name = message.split()[0]
@@ -251,6 +254,17 @@ async def admin_remove_user(message, websocket):
         
     # currently didn't to the "else" thing
 
+async def admin_add_admin(message,websocket):
+    parts = message.split(' ', 2)
+    username_to_add = parts[1]
+    user = find_user_by_username(username_to_add)
+    user_id = user["id"]
+    room_name = parts[2]
+    room = room_exists_by_name(room_name)
+    if user_id in get_users_in_room(room):
+        change_user_role(user_id, room, "admin")
+        await broadcast_message(message, room, websocket)
+
 async def broadcast_message(message, room, websocket):
     username = websocket_to_username[websocket]
     users_in_room = get_users_in_room(room)
@@ -258,7 +272,11 @@ async def broadcast_message(message, room, websocket):
         username_to_send = find_user_by_id(user_id)["username"]
         socket_to_send = username_to_websocket.get(username_to_send)
         if socket_to_send:
-            if message.startswith("remove"):
+            if message.startswith("add"):
+                parts = message.split(' ', 2)
+                username_to_add = parts[1]
+                await socket_to_send.send(f"{username_to_add} is an admin now!")
+            elif message.startswith("remove"):
                 parts = message.split(' ', 2)
                 username_to_remove = parts[1]
                 await socket_to_send.send(f"{username_to_remove} was removed from the room by {username}")

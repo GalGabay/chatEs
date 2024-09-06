@@ -85,6 +85,31 @@ def room_exists_by_name(room_name):
 def room_exists_by_id(room_id):
     return rooms.find_one({"id": room_id})
 
+#UPDATING:
+def add_room_to_user(user, room):
+    result = users.update_one(
+        {"username": user["username"]},
+        {"$addToSet": {"rooms": room["id"]}}
+    )
+    return result.modified_count > 0
+def add_user_to_room(room, user):
+    result = rooms.update_one(
+        {"name": room["name"]},  # Filter to find the room by name
+        {"$addToSet": {"users": user}}  # Add the user to the "users" array if not already present
+    )
+    return result.modified_count > 0  # Returns True if the user was added
+def change_user_role(user_id, room, role):
+    users_in_room = room.get("users", [])
+    
+    if not users_in_room:
+        return False  # If no users are in the room, return False
+    
+    for user in users_in_room:
+        if user.get("id") == user_id:
+            user["role"] = role
+            break
+
+
 
 #GETTING:
 
@@ -103,18 +128,11 @@ def get_num_of_users():
  #UPDATING:
 
  # Function to add a user to a room
-def add_user_to_room(room, user):
     result = rooms.update_one(
         {"name": room["name"]},  # Filter to find the room by name
         {"$addToSet": {"users": user}}  # Add the user to the "users" array if not already present
     )
     return result.modified_count > 0  # Returns True if the user was added
-def add_room_to_user(user, room):
-    result = users.update_one(
-        {"username": user["username"]},
-        {"$addToSet": {"rooms": room["id"]}}
-    )
-    return result.modified_count > 0
 def get_message_history(room_name, limit=10):
 
     return messages.find({"room_name": room_name}).sort("time", -1).limit(limit)
