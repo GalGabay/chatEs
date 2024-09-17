@@ -5,3 +5,10 @@ How to run:
 
 
 Tech skills: MongoDB, server-client communication using websockets, multi-threading using asyncio, jwt for authentication
+
+what i did so far:
+1. joining and creating a room
+2. private messaging
+3. notifications(with winsound)
+4. user roles(admin and member)
+5. DB - user,room and messages collectionss
